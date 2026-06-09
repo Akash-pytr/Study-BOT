@@ -38,7 +38,7 @@ module.exports = {
                 });
             }
 
-            // Check if user is in a voice channel
+            // Check if user is in a voice channel — VC mein hona zaroori hai
             const member = interaction.member;
             const voiceChannel = member?.voice?.channel;
 
@@ -49,22 +49,7 @@ module.exports = {
                 });
             }
 
-            // Check if it's a study channel (if configured)
-            const guildConfig = queries.getGuildConfig(guildId);
-            let studyChannels = [];
-            try {
-                studyChannels = JSON.parse(guildConfig?.study_channels || '[]');
-            } catch (e) { studyChannels = []; }
-
-            const isStudyVC = studyChannels.length === 0 || studyChannels.includes(voiceChannel.id);
-
-            if (!isStudyVC) {
-                return interaction.reply({
-                    content: `⚠️ Tum study voice channel mein nahi ho!\nStudy channels: ${studyChannels.map(id => `<#${id}>`).join(', ')}\nPehle study VC mein join karo, phir session auto-start ho jayega.`,
-                    ephemeral: true,
-                });
-            }
-
+            // Any VC se start kar sakte ho — leave karne pe auto-stop ho jayega
             queries.setSessionStart(Math.floor(Date.now() / 1000), userId, guildId);
             const embed = sessionEmbed(interaction.user, 'start');
             return interaction.reply({ embeds: [embed] });
