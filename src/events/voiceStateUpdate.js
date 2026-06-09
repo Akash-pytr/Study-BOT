@@ -25,7 +25,8 @@ module.exports = {
 
         const isStudyChannel = (channelId) => {
             if (!channelId) return false;
-            return studyChannels.length === 0 || studyChannels.includes(channelId);
+            // Only count explicitly configured study channels — no config = no auto-tracking
+            return studyChannels.length > 0 && studyChannels.includes(channelId);
         };
 
         // User JOINED a voice channel (was not in any VC before)
