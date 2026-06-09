@@ -23,28 +23,36 @@ module.exports = {
         const oldChannelId = oldState.channelId;
         const newChannelId = newState.channelId;
 
-        // User JOINED a voice channel
+        const isStudyChannel = (channelId) => {
+            if (!channelId) return false;
+            return studyChannels.length === 0 || studyChannels.includes(channelId);
+        };
+
+        // User JOINED a voice channel (was not in any VC before)
         if (!oldChannelId && newChannelId) {
-            if (studyChannels.length === 0 || studyChannels.includes(newChannelId)) {
+            if (isStudyChannel(newChannelId)) {
                 handleJoin(userId, guildId);
             }
         }
-        // User LEFT a voice channel
+        // User LEFT a voice channel (completely disconnected from VC)
         else if (oldChannelId && !newChannelId) {
-            if (studyChannels.length === 0 || studyChannels.includes(oldChannelId)) {
-                await handleLeave(userId, guildId, newState.client);
-            }
+            // ALWAYS auto-stop session when user leaves VC — regardless of which channel
+            // This fixes the issue where manually started sessions keep running after VC leave
+            await handleLeave(userId, guildId, newState.client);
         }
         // User SWITCHED channels
         else if (oldChannelId && newChannelId && oldChannelId !== newChannelId) {
-            const wasInStudy = studyChannels.length === 0 || studyChannels.includes(oldChannelId);
-            const nowInStudy = studyChannels.length === 0 || studyChannels.includes(newChannelId);
+            const wasInStudy = isStudyChannel(oldChannelId);
+            const nowInStudy = isStudyChannel(newChannelId);
 
             if (wasInStudy && !nowInStudy) {
+                // Moved from study VC to non-study VC → auto-stop session
                 await handleLeave(userId, guildId, newState.client);
             } else if (!wasInStudy && nowInStudy) {
+                // Moved from non-study VC to study VC → auto-start session
                 handleJoin(userId, guildId);
             }
+            // If both are study channels or both are non-study, do nothing
         }
     },
 };
@@ -52,21 +60,23 @@ module.exports = {
 function handleJoin(userId, guildId) {
     queries.upsertUser(userId, guildId);
     const user = queries.getUser(userId, guildId);
-    if (user.session_start) return;
+    if (user.session_start) return; // Already has an active session
 
     queries.setSessionStart(Math.floor(Date.now() / 1000), userId, guildId);
-    console.log(`[VC] ${userId} started studying in guild ${guildId}`);
+    console.log(`[VC] ${userId} auto-started studying in guild ${guildId}`);
 }
 
 async function handleLeave(userId, guildId, client) {
     const user = queries.getUser(userId, guildId);
-    if (!user || !user.session_start) return;
+    if (!user || !user.session_start) return; // No active session
 
     const endTime = Math.floor(Date.now() / 1000);
     const duration = endTime - user.session_start;
 
+    // Ignore sessions shorter than 60 seconds (accidental joins)
     if (duration < 60) {
         queries.clearSession(userId, guildId);
+        console.log(`[VC] ${userId} session too short (${duration}s), discarded`);
         return;
     }
 
@@ -84,5 +94,5 @@ async function handleLeave(userId, guildId, client) {
     await checkMilestones(userId, guildId, updatedUser.total_seconds, client);
     await checkPrestige(userId, guildId, updatedUser.total_seconds, client);
 
-    console.log(`[VC] ${userId} studied for ${Math.floor(duration / 60)}m in guild ${guildId}`);
+    console.log(`[VC] ${userId} auto-stopped studying — ${Math.floor(duration / 60)}m in guild ${guildId}`);
 }
