@@ -2,18 +2,13 @@ const { queries } = require('../database/db');
 const { monthlyWinnerEmbed } = require('../utils/embedBuilder');
 const { getCurrentMonth } = require('../utils/formatTime');
 
-/**
- * Calculate the monthly winner, assign role, announce, and reset.
- * @param {import('discord.js').Client} client
- * @param {string} guildId
- */
 async function processMonthlyWinner(client, guildId) {
     try {
         const guild = await client.guilds.fetch(guildId);
-        const guildConfig = queries.getGuildConfig(guildId);
+        const guildConfig = await queries.getGuildConfig(guildId);
         if (!guildConfig) return;
 
-        const topUser = queries.getTopMonthly(guildId);
+        const topUser = await queries.getTopMonthly(guildId);
         if (topUser.length === 0) return;
 
         const winner = topUser[0];
@@ -23,7 +18,7 @@ async function processMonthlyWinner(client, guildId) {
             await removeOldMonthlyRole(guild, guildConfig.monthly_winner_role);
         }
 
-        queries.insertMonthlyWinner(
+        await queries.insertMonthlyWinner(
             guildId, winner.user_id,
             parseFloat((winner.monthly_seconds / 3600).toFixed(1)),
             month, JSON.stringify([])
@@ -50,7 +45,7 @@ async function processMonthlyWinner(client, guildId) {
             }
         }
 
-        queries.resetMonthlyAll(guildId);
+        await queries.resetMonthlyAll(guildId);
         console.log(`[MonthlyWinner] Processed winner for guild ${guildId}: ${winner.user_id}`);
     } catch (error) {
         console.error(`[MonthlyWinner] Error processing guild ${guildId}:`, error);
@@ -69,8 +64,8 @@ async function removeOldMonthlyRole(guild, roleId) {
     }
 }
 
-function getMonthlyHistory(guildId, limit = 24) {
-    return queries.getMonthlyWinnerHistory(guildId, limit);
+async function getMonthlyHistory(guildId, limit = 24) {
+    return await queries.getMonthlyWinnerHistory(guildId, limit);
 }
 
 module.exports = { processMonthlyWinner, getMonthlyHistory };

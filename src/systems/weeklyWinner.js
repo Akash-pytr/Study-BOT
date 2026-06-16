@@ -2,18 +2,13 @@ const { queries } = require('../database/db');
 const { weeklyWinnersEmbed } = require('../utils/embedBuilder');
 const { getWeekStartISO, getWeekEndISO } = require('../utils/formatTime');
 
-/**
- * Calculate the top 3 weekly students, assign roles, announce, and reset.
- * @param {import('discord.js').Client} client
- * @param {string} guildId
- */
 async function processWeeklyWinners(client, guildId) {
     try {
         const guild = await client.guilds.fetch(guildId);
-        const guildConfig = queries.getGuildConfig(guildId);
+        const guildConfig = await queries.getGuildConfig(guildId);
         if (!guildConfig) return;
 
-        const top3 = queries.getTopWeekly(guildId);
+        const top3 = await queries.getTopWeekly(guildId);
         if (top3.length === 0) return;
 
         const weekStart = getWeekStartISO();
@@ -30,7 +25,7 @@ async function processWeeklyWinners(client, guildId) {
             const winner = top3[i];
             const rank = i + 1;
 
-            queries.insertWeeklyWinner(
+            await queries.insertWeeklyWinner(
                 guildId, winner.user_id, rank,
                 parseFloat((winner.weekly_seconds / 3600).toFixed(1)),
                 weekStart, weekEnd
@@ -58,7 +53,7 @@ async function processWeeklyWinners(client, guildId) {
             }
         }
 
-        queries.resetWeeklyAll(guildId);
+        await queries.resetWeeklyAll(guildId);
         console.log(`[WeeklyWinner] Processed winners for guild ${guildId}`);
     } catch (error) {
         console.error(`[WeeklyWinner] Error processing guild ${guildId}:`, error);
@@ -80,8 +75,8 @@ async function removeOldWeeklyRoles(guild, roleIds) {
     }
 }
 
-function getWeeklyHistory(guildId, limit = 30) {
-    return queries.getWeeklyWinnerHistory(guildId, limit);
+async function getWeeklyHistory(guildId, limit = 30) {
+    return await queries.getWeeklyWinnerHistory(guildId, limit);
 }
 
 module.exports = { processWeeklyWinners, getWeeklyHistory };

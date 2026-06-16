@@ -14,10 +14,13 @@ module.exports = {
         const guildId = interaction.guildId;
         const guild = interaction.guild;
 
-        const allTimeTop = queries.getLeaderboardAllTime(guildId, 10);
-        const topStreaks = queries.getTopStreaks(guildId, 5);
-        const monthlyHistory = getMonthlyHistory(guildId, 6);
-        const weeklyHistory = getWeeklyHistory(guildId, 30)
+        const allTimeTop = await queries.getLeaderboardAllTime(guildId, 10);
+        const topStreaks = await queries.getTopStreaks(guildId, 5);
+        const monthlyHistoryRaw = await getMonthlyHistory(guildId, 6);
+        const weeklyHistoryRaw = await getWeeklyHistory(guildId, 30);
+        
+        const monthlyHistory = monthlyHistoryRaw;
+        const weeklyHistory = weeklyHistoryRaw
             .filter(w => w.rank === 1)
             .slice(0, 6);
 

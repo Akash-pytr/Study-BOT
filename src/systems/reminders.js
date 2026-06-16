@@ -3,16 +3,12 @@ const { reminderEmbed } = require('../utils/embedBuilder');
 const { getTodayISO } = require('../utils/formatTime');
 const { checkStreakRisk } = require('./streaks');
 
-/**
- * Send study reminders to all opted-in users across all guilds.
- * @param {import('discord.js').Client} client
- */
 async function sendReminders(client) {
-    const guilds = queries.getAllGuilds();
+    const guilds = await queries.getAllGuilds();
     const today = getTodayISO();
 
     for (const { guild_id: guildId } of guilds) {
-        const users = queries.getReminderUsers(guildId);
+        const users = await queries.getReminderUsers(guildId);
 
         for (const user of users) {
             if (user.last_study_date === today) continue;
@@ -20,7 +16,7 @@ async function sendReminders(client) {
 
             try {
                 const discordUser = await client.users.fetch(user.user_id);
-                const streakInfo = checkStreakRisk(user.user_id, guildId);
+                const streakInfo = await checkStreakRisk(user.user_id, guildId);
 
                 let goalProgress = null;
                 if (user.goal_hours > 0) {

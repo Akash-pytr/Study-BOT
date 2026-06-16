@@ -12,7 +12,7 @@ module.exports = {
         const guildId = interaction.guildId;
         const month = getCurrentMonth();
 
-        const topUser = queries.getTopMonthly(guildId);
+        const topUser = await queries.getTopMonthly(guildId);
 
         const embed = new EmbedBuilder()
             .setColor(config.COLORS.GOLD)

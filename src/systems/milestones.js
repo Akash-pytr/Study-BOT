@@ -2,23 +2,16 @@ const config = require('../config');
 const { queries } = require('../database/db');
 const { milestoneEmbed } = require('../utils/embedBuilder');
 
-/**
- * Check if a user has reached any new milestones after a study session.
- * @param {string} userId
- * @param {string} guildId
- * @param {number} totalSeconds
- * @param {import('discord.js').Client} client
- * @returns {Promise<number[]>} array of newly achieved milestone hours
- */
 async function checkMilestones(userId, guildId, totalSeconds, client) {
     const totalHours = totalSeconds / 3600;
-    const achieved = queries.getMilestones(userId, guildId).map(m => m.milestone_hours);
+    const dbMilestones = await queries.getMilestones(userId, guildId);
+    const achieved = dbMilestones.map(m => m.milestone_hours);
     const newMilestones = [];
 
     for (const threshold of config.MILESTONES) {
         if (totalHours >= threshold && !achieved.includes(threshold)) {
-            queries.insertMilestone(userId, guildId, threshold);
-            queries.incrementAchievements(userId, guildId);
+            await queries.insertMilestone(userId, guildId, threshold);
+            await queries.incrementAchievements(userId, guildId);
             newMilestones.push(threshold);
             await announceMilestone(userId, guildId, threshold, client);
         }
@@ -29,12 +22,12 @@ async function checkMilestones(userId, guildId, totalSeconds, client) {
 
 async function announceMilestone(userId, guildId, milestoneHours, client) {
     try {
-        const guildConfig = queries.getGuildConfig(guildId);
+        const guildConfig = await queries.getGuildConfig(guildId);
         const guild = await client.guilds.fetch(guildId);
         const member = await guild.members.fetch(userId);
-        const user = queries.getUser(userId, guildId);
+        const user = await queries.getUser(userId, guildId);
 
-        const rankResult = queries.getUserRank(guildId, userId);
+        const rankResult = await queries.getUserRank(guildId, userId);
         const rank = rankResult?.rank || '?';
 
         const channelId = guildConfig?.achievement_channel || guildConfig?.announcement_channel;

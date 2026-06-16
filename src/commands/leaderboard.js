@@ -29,7 +29,7 @@ module.exports = {
             alltime: () => queries.getLeaderboardAllTime(guildId, 10),
         };
 
-        const users = queryMap[period]();
+        const users = await queryMap[period]();
         const embed = leaderboardEmbed(users, period, interaction.guild);
 
         return interaction.reply({ embeds: [embed] });

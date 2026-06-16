@@ -1,390 +1,382 @@
-const initSqlJs = require('sql.js');
-const path = require('path');
-const fs = require('fs');
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-// Ensure data directory exists
-const dataDir = path.join(__dirname, '..', '..', 'data');
-if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+    console.error('❌ Supabase URL or Key is missing in .env file!');
 }
 
-const DB_PATH = path.join(dataDir, 'study.db');
+const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseKey || 'placeholder');
 
-let db = null;
-let stmts = null;
-
-/**
- * Initialize the database. Must be called once before any queries.
- * @returns {Promise<void>}
- */
 async function initDB() {
-    const SQL = await initSqlJs();
-
-    // Load existing database or create new
-    if (fs.existsSync(DB_PATH)) {
-        const buffer = fs.readFileSync(DB_PATH);
-        db = new SQL.Database(buffer);
-    } else {
-        db = new SQL.Database();
-    }
-
-    // Create tables
-    db.run(`
-        CREATE TABLE IF NOT EXISTS users (
-            user_id TEXT NOT NULL,
-            guild_id TEXT NOT NULL,
-            total_seconds INTEGER DEFAULT 0,
-            daily_seconds INTEGER DEFAULT 0,
-            weekly_seconds INTEGER DEFAULT 0,
-            monthly_seconds INTEGER DEFAULT 0,
-            xp INTEGER DEFAULT 0,
-            level INTEGER DEFAULT 0,
-            current_streak INTEGER DEFAULT 0,
-            best_streak INTEGER DEFAULT 0,
-            last_study_date TEXT,
-            goal_hours REAL DEFAULT 0,
-            goal_period TEXT DEFAULT 'daily',
-            reminders_enabled INTEGER DEFAULT 0,
-            achievements_count INTEGER DEFAULT 0,
-            prestige_level INTEGER DEFAULT 0,
-            session_start INTEGER,
-            created_at TEXT DEFAULT (datetime('now')),
-            PRIMARY KEY (user_id, guild_id)
-        );
-    `);
-    db.run(`
-        CREATE TABLE IF NOT EXISTS study_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            guild_id TEXT NOT NULL,
-            start_time INTEGER NOT NULL,
-            end_time INTEGER NOT NULL,
-            duration_seconds INTEGER NOT NULL,
-            date TEXT NOT NULL
-        );
-    `);
-    db.run(`
-        CREATE TABLE IF NOT EXISTS weekly_winners (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            guild_id TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            rank INTEGER NOT NULL,
-            hours REAL NOT NULL,
-            week_start TEXT NOT NULL,
-            week_end TEXT NOT NULL
-        );
-    `);
-    db.run(`
-        CREATE TABLE IF NOT EXISTS monthly_winners (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            guild_id TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            hours REAL NOT NULL,
-            month TEXT NOT NULL,
-            achievements TEXT DEFAULT '[]'
-        );
-    `);
-    db.run(`
-        CREATE TABLE IF NOT EXISTS milestones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            guild_id TEXT NOT NULL,
-            milestone_hours INTEGER NOT NULL,
-            achieved_at TEXT DEFAULT (datetime('now')),
-            UNIQUE(user_id, guild_id, milestone_hours)
-        );
-    `);
-    db.run(`
-        CREATE TABLE IF NOT EXISTS guild_config (
-            guild_id TEXT PRIMARY KEY,
-            announcement_channel TEXT,
-            achievement_channel TEXT,
-            study_channels TEXT DEFAULT '[]',
-            weekly_champion_role TEXT,
-            weekly_elite_role TEXT,
-            weekly_achiever_role TEXT,
-            monthly_winner_role TEXT,
-            prestige_roles TEXT DEFAULT '{}',
-            milestone_roles TEXT DEFAULT '{}'
-        );
-    `);
-
-    // Create indexes
-    db.run(`CREATE INDEX IF NOT EXISTS idx_users_guild ON users(guild_id);`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_users_weekly ON users(guild_id, weekly_seconds DESC);`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_users_monthly ON users(guild_id, monthly_seconds DESC);`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_users_total ON users(guild_id, total_seconds DESC);`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON study_sessions(user_id, guild_id);`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_date ON study_sessions(date);`);
-
-    // Save after init
-    saveDB();
-
-    console.log('✅ Database initialized successfully');
+    console.log('✅ Connected to Supabase');
 }
 
-/**
- * Save database to disk.
- */
 function saveDB() {
-    if (!db) return;
-    const data = db.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(DB_PATH, buffer);
+    // No-op for Supabase
 }
-
-// Auto-save every 30 seconds
-setInterval(() => saveDB(), 30000);
-
-// Save on process exit
-process.on('exit', () => saveDB());
-process.on('SIGINT', () => { saveDB(); process.exit(0); });
-process.on('SIGTERM', () => { saveDB(); process.exit(0); });
-
-// ─── Query Helpers ────────────────────────────────────────────
-
-/**
- * Execute a query and return the first row as an object.
- * @param {string} sql
- * @param {Array} params
- * @returns {object|undefined}
- */
-function getOne(sql, params = []) {
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    if (stmt.step()) {
-        const cols = stmt.getColumnNames();
-        const vals = stmt.get();
-        stmt.free();
-        const row = {};
-        cols.forEach((col, i) => row[col] = vals[i]);
-        return row;
-    }
-    stmt.free();
-    return undefined;
-}
-
-/**
- * Execute a query and return all rows as array of objects.
- * @param {string} sql
- * @param {Array} params
- * @returns {Array<object>}
- */
-function getAll(sql, params = []) {
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    const rows = [];
-    while (stmt.step()) {
-        const cols = stmt.getColumnNames();
-        const vals = stmt.get();
-        const row = {};
-        cols.forEach((col, i) => row[col] = vals[i]);
-        rows.push(row);
-    }
-    stmt.free();
-    return rows;
-}
-
-/**
- * Execute a statement (INSERT/UPDATE/DELETE).
- * @param {string} sql
- * @param {Array} params
- */
-function run(sql, params = []) {
-    db.run(sql, params);
-    saveDB();
-}
-
-// ─── Prepared Query Functions ─────────────────────────────────
 
 const queries = {
     // ── User Operations ──
-    getUser(userId, guildId) {
-        return getOne(`SELECT * FROM users WHERE user_id = ? AND guild_id = ?`, [userId, guildId]);
+    async getUser(userId, guildId) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('guild_id', guildId)
+            .single();
+        if (error && error.code !== 'PGRST116') console.error('getUser error:', error);
+        return data || undefined;
     },
 
-    upsertUser(userId, guildId) {
-        run(`INSERT OR IGNORE INTO users (user_id, guild_id) VALUES (?, ?)`, [userId, guildId]);
+    async upsertUser(userId, guildId) {
+        const { error } = await supabase
+            .from('users')
+            .upsert({ user_id: userId, guild_id: guildId }, { onConflict: 'user_id, guild_id', ignoreDuplicates: true });
+        if (error) console.error('upsertUser error:', error);
     },
 
-    updateStudyTime(duration, today, userId, guildId) {
-        run(`UPDATE users SET
-            total_seconds = total_seconds + ?,
-            daily_seconds = daily_seconds + ?,
-            weekly_seconds = weekly_seconds + ?,
-            monthly_seconds = monthly_seconds + ?,
-            last_study_date = ?
-        WHERE user_id = ? AND guild_id = ?`,
-        [duration, duration, duration, duration, today, userId, guildId]);
+    async updateStudyTime(duration, today, userId, guildId) {
+        const { error } = await supabase.rpc('update_study_time', {
+            p_duration: duration,
+            p_today: today,
+            p_user_id: userId,
+            p_guild_id: guildId
+        });
+        if (error) console.error('updateStudyTime error:', error);
     },
 
-    updateXPLevel(xp, level, userId, guildId) {
-        run(`UPDATE users SET xp = ?, level = ? WHERE user_id = ? AND guild_id = ?`,
-        [xp, level, userId, guildId]);
+    async updateXPLevel(xp, level, userId, guildId) {
+        const { error } = await supabase
+            .from('users')
+            .update({ xp, level })
+            .eq('user_id', userId)
+            .eq('guild_id', guildId);
+        if (error) console.error('updateXPLevel error:', error);
     },
 
-    updateStreak(currentStreak, bestStreak, userId, guildId) {
-        run(`UPDATE users SET current_streak = ?, best_streak = ? WHERE user_id = ? AND guild_id = ?`,
-        [currentStreak, bestStreak, userId, guildId]);
+    async updateStreak(currentStreak, bestStreak, userId, guildId) {
+        const { error } = await supabase
+            .from('users')
+            .update({ current_streak: currentStreak, best_streak: bestStreak })
+            .eq('user_id', userId)
+            .eq('guild_id', guildId);
+        if (error) console.error('updateStreak error:', error);
     },
 
-    setSessionStart(timestamp, userId, guildId) {
-        run(`UPDATE users SET session_start = ? WHERE user_id = ? AND guild_id = ?`,
-        [timestamp, userId, guildId]);
+    async setSessionStart(timestamp, userId, guildId) {
+        const { error } = await supabase
+            .from('users')
+            .update({ session_start: timestamp })
+            .eq('user_id', userId)
+            .eq('guild_id', guildId);
+        if (error) console.error('setSessionStart error:', error);
     },
 
-    clearSession(userId, guildId) {
-        run(`UPDATE users SET session_start = NULL WHERE user_id = ? AND guild_id = ?`,
-        [userId, guildId]);
+    async clearSession(userId, guildId) {
+        const { error } = await supabase
+            .from('users')
+            .update({ session_start: null })
+            .eq('user_id', userId)
+            .eq('guild_id', guildId);
+        if (error) console.error('clearSession error:', error);
     },
 
-    setGoal(hours, period, userId, guildId) {
-        run(`UPDATE users SET goal_hours = ?, goal_period = ? WHERE user_id = ? AND guild_id = ?`,
-        [hours, period, userId, guildId]);
+    async setGoal(hours, period, userId, guildId) {
+        const { error } = await supabase
+            .from('users')
+            .update({ goal_hours: hours, goal_period: period })
+            .eq('user_id', userId)
+            .eq('guild_id', guildId);
+        if (error) console.error('setGoal error:', error);
     },
 
-    setReminders(enabled, userId, guildId) {
-        run(`UPDATE users SET reminders_enabled = ? WHERE user_id = ? AND guild_id = ?`,
-        [enabled, userId, guildId]);
+    async setReminders(enabled, userId, guildId) {
+        const { error } = await supabase
+            .from('users')
+            .update({ reminders_enabled: enabled })
+            .eq('user_id', userId)
+            .eq('guild_id', guildId);
+        if (error) console.error('setReminders error:', error);
     },
 
-    updatePrestige(level, userId, guildId) {
-        run(`UPDATE users SET prestige_level = ? WHERE user_id = ? AND guild_id = ?`,
-        [level, userId, guildId]);
+    async updatePrestige(level, userId, guildId) {
+        const { error } = await supabase
+            .from('users')
+            .update({ prestige_level: level })
+            .eq('user_id', userId)
+            .eq('guild_id', guildId);
+        if (error) console.error('updatePrestige error:', error);
     },
 
-    incrementAchievements(userId, guildId) {
-        run(`UPDATE users SET achievements_count = achievements_count + 1 WHERE user_id = ? AND guild_id = ?`,
-        [userId, guildId]);
+    async incrementAchievements(userId, guildId) {
+        const { error } = await supabase.rpc('increment_achievements', {
+            p_user_id: userId,
+            p_guild_id: guildId
+        });
+        if (error) console.error('incrementAchievements error:', error);
     },
 
     // ── Leaderboard Queries ──
-    getLeaderboardDaily(guildId, limit) {
-        return getAll(`SELECT * FROM users WHERE guild_id = ? AND daily_seconds > 0
-            ORDER BY daily_seconds DESC LIMIT ?`, [guildId, limit]);
+    async getLeaderboardDaily(guildId, limit) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('guild_id', guildId)
+            .gt('daily_seconds', 0)
+            .order('daily_seconds', { ascending: false })
+            .limit(limit);
+        if (error) console.error('getLeaderboardDaily error:', error);
+        return data || [];
     },
 
-    getLeaderboardWeekly(guildId, limit) {
-        return getAll(`SELECT * FROM users WHERE guild_id = ? AND weekly_seconds > 0
-            ORDER BY weekly_seconds DESC LIMIT ?`, [guildId, limit]);
+    async getLeaderboardWeekly(guildId, limit) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('guild_id', guildId)
+            .gt('weekly_seconds', 0)
+            .order('weekly_seconds', { ascending: false })
+            .limit(limit);
+        if (error) console.error('getLeaderboardWeekly error:', error);
+        return data || [];
     },
 
-    getLeaderboardMonthly(guildId, limit) {
-        return getAll(`SELECT * FROM users WHERE guild_id = ? AND monthly_seconds > 0
-            ORDER BY monthly_seconds DESC LIMIT ?`, [guildId, limit]);
+    async getLeaderboardMonthly(guildId, limit) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('guild_id', guildId)
+            .gt('monthly_seconds', 0)
+            .order('monthly_seconds', { ascending: false })
+            .limit(limit);
+        if (error) console.error('getLeaderboardMonthly error:', error);
+        return data || [];
     },
 
-    getLeaderboardAllTime(guildId, limit) {
-        return getAll(`SELECT * FROM users WHERE guild_id = ? AND total_seconds > 0
-            ORDER BY total_seconds DESC LIMIT ?`, [guildId, limit]);
+    async getLeaderboardAllTime(guildId, limit) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('guild_id', guildId)
+            .gt('total_seconds', 0)
+            .order('total_seconds', { ascending: false })
+            .limit(limit);
+        if (error) console.error('getLeaderboardAllTime error:', error);
+        return data || [];
     },
 
-    getUserRank(guildId, userId) {
-        return getOne(`SELECT COUNT(*) + 1 as rank FROM users
-            WHERE guild_id = ? AND total_seconds > (
-                SELECT COALESCE(total_seconds, 0) FROM users WHERE user_id = ? AND guild_id = ?
-            )`, [guildId, userId, guildId]);
+    async getUserRank(guildId, userId) {
+        // Need to fetch user's total_seconds first
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('total_seconds')
+            .eq('user_id', userId)
+            .eq('guild_id', guildId)
+            .single();
+            
+        if (userError && userError.code !== 'PGRST116') console.error('getUserRank user fetch error:', userError);
+        
+        const totalSeconds = userData ? userData.total_seconds || 0 : 0;
+        
+        const { count, error } = await supabase
+            .from('users')
+            .select('*', { count: 'exact', head: true })
+            .eq('guild_id', guildId)
+            .gt('total_seconds', totalSeconds);
+            
+        if (error) console.error('getUserRank count error:', error);
+        return { rank: (count || 0) + 1 };
     },
 
     // ── Weekly/Monthly Winners ──
-    getTopWeekly(guildId) {
-        return getAll(`SELECT * FROM users WHERE guild_id = ? AND weekly_seconds > 0
-            ORDER BY weekly_seconds DESC LIMIT 3`, [guildId]);
+    async getTopWeekly(guildId) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('guild_id', guildId)
+            .gt('weekly_seconds', 0)
+            .order('weekly_seconds', { ascending: false })
+            .limit(3);
+        if (error) console.error('getTopWeekly error:', error);
+        return data || [];
     },
 
-    getTopMonthly(guildId) {
-        return getAll(`SELECT * FROM users WHERE guild_id = ? AND monthly_seconds > 0
-            ORDER BY monthly_seconds DESC LIMIT 1`, [guildId]);
+    async getTopMonthly(guildId) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('guild_id', guildId)
+            .gt('monthly_seconds', 0)
+            .order('monthly_seconds', { ascending: false })
+            .limit(1);
+        if (error) console.error('getTopMonthly error:', error);
+        return data || [];
     },
 
-    insertWeeklyWinner(guildId, userId, rank, hours, weekStart, weekEnd) {
-        run(`INSERT INTO weekly_winners (guild_id, user_id, rank, hours, week_start, week_end)
-            VALUES (?, ?, ?, ?, ?, ?)`, [guildId, userId, rank, hours, weekStart, weekEnd]);
+    async insertWeeklyWinner(guildId, userId, rank, hours, weekStart, weekEnd) {
+        const { error } = await supabase
+            .from('weekly_winners')
+            .insert({ guild_id: guildId, user_id: userId, rank, hours, week_start: weekStart, week_end: weekEnd });
+        if (error) console.error('insertWeeklyWinner error:', error);
     },
 
-    insertMonthlyWinner(guildId, userId, hours, month, achievements) {
-        run(`INSERT INTO monthly_winners (guild_id, user_id, hours, month, achievements)
-            VALUES (?, ?, ?, ?, ?)`, [guildId, userId, hours, month, achievements]);
+    async insertMonthlyWinner(guildId, userId, hours, month, achievements) {
+        const { error } = await supabase
+            .from('monthly_winners')
+            .insert({ guild_id: guildId, user_id: userId, hours, month, achievements });
+        if (error) console.error('insertMonthlyWinner error:', error);
     },
 
-    getWeeklyWinnerHistory(guildId, limit) {
-        return getAll(`SELECT * FROM weekly_winners WHERE guild_id = ?
-            ORDER BY week_start DESC LIMIT ?`, [guildId, limit]);
+    async getWeeklyWinnerHistory(guildId, limit) {
+        const { data, error } = await supabase
+            .from('weekly_winners')
+            .select('*')
+            .eq('guild_id', guildId)
+            .order('week_start', { ascending: false })
+            .limit(limit);
+        if (error) console.error('getWeeklyWinnerHistory error:', error);
+        return data || [];
     },
 
-    getMonthlyWinnerHistory(guildId, limit) {
-        return getAll(`SELECT * FROM monthly_winners WHERE guild_id = ?
-            ORDER BY month DESC LIMIT ?`, [guildId, limit]);
+    async getMonthlyWinnerHistory(guildId, limit) {
+        const { data, error } = await supabase
+            .from('monthly_winners')
+            .select('*')
+            .eq('guild_id', guildId)
+            .order('month', { ascending: false })
+            .limit(limit);
+        if (error) console.error('getMonthlyWinnerHistory error:', error);
+        return data || [];
     },
 
     // ── Resets ──
-    resetDailyAll(guildId) {
-        run(`UPDATE users SET daily_seconds = 0 WHERE guild_id = ?`, [guildId]);
+    async resetDailyAll(guildId) {
+        const { error } = await supabase
+            .from('users')
+            .update({ daily_seconds: 0 })
+            .eq('guild_id', guildId);
+        if (error) console.error('resetDailyAll error:', error);
     },
 
-    resetWeeklyAll(guildId) {
-        run(`UPDATE users SET weekly_seconds = 0 WHERE guild_id = ?`, [guildId]);
+    async resetWeeklyAll(guildId) {
+        const { error } = await supabase
+            .from('users')
+            .update({ weekly_seconds: 0 })
+            .eq('guild_id', guildId);
+        if (error) console.error('resetWeeklyAll error:', error);
     },
 
-    resetMonthlyAll(guildId) {
-        run(`UPDATE users SET monthly_seconds = 0 WHERE guild_id = ?`, [guildId]);
+    async resetMonthlyAll(guildId) {
+        const { error } = await supabase
+            .from('users')
+            .update({ monthly_seconds: 0 })
+            .eq('guild_id', guildId);
+        if (error) console.error('resetMonthlyAll error:', error);
     },
 
     // ── Sessions ──
-    insertSession(userId, guildId, startTime, endTime, duration, date) {
-        run(`INSERT INTO study_sessions (user_id, guild_id, start_time, end_time, duration_seconds, date)
-            VALUES (?, ?, ?, ?, ?, ?)`, [userId, guildId, startTime, endTime, duration, date]);
+    async insertSession(userId, guildId, startTime, endTime, duration, date) {
+        const { error } = await supabase
+            .from('study_sessions')
+            .insert({ user_id: userId, guild_id: guildId, start_time: startTime, end_time: endTime, duration_seconds: duration, date });
+        if (error) console.error('insertSession error:', error);
     },
 
     // ── Milestones ──
-    getMilestones(userId, guildId) {
-        return getAll(`SELECT milestone_hours FROM milestones WHERE user_id = ? AND guild_id = ?`,
-            [userId, guildId]);
+    async getMilestones(userId, guildId) {
+        const { data, error } = await supabase
+            .from('milestones')
+            .select('milestone_hours')
+            .eq('user_id', userId)
+            .eq('guild_id', guildId);
+        if (error) console.error('getMilestones error:', error);
+        return data || [];
     },
 
-    insertMilestone(userId, guildId, milestoneHours) {
-        run(`INSERT OR IGNORE INTO milestones (user_id, guild_id, milestone_hours) VALUES (?, ?, ?)`,
-            [userId, guildId, milestoneHours]);
+    async insertMilestone(userId, guildId, milestoneHours) {
+        const { error } = await supabase
+            .from('milestones')
+            .insert({ user_id: userId, guild_id: guildId, milestone_hours: milestoneHours });
+        if (error && error.code !== '23505') console.error('insertMilestone error:', error); // ignore unique violation
     },
 
     // ── Streak Queries ──
-    getTopStreaks(guildId, limit) {
-        return getAll(`SELECT * FROM users WHERE guild_id = ? AND best_streak > 0
-            ORDER BY best_streak DESC LIMIT ?`, [guildId, limit]);
+    async getTopStreaks(guildId, limit) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('guild_id', guildId)
+            .gt('best_streak', 0)
+            .order('best_streak', { ascending: false })
+            .limit(limit);
+        if (error) console.error('getTopStreaks error:', error);
+        return data || [];
     },
 
     // ── Reminder Users ──
-    getReminderUsers(guildId) {
-        return getAll(`SELECT * FROM users WHERE guild_id = ? AND reminders_enabled = 1`, [guildId]);
+    async getReminderUsers(guildId) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('guild_id', guildId)
+            .eq('reminders_enabled', 1);
+        if (error) console.error('getReminderUsers error:', error);
+        return data || [];
     },
 
-    getActiveSessionUsers() {
-        return getAll(`SELECT * FROM users WHERE session_start IS NOT NULL`);
+    async getActiveSessionUsers() {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .not('session_start', 'is', null);
+        if (error) console.error('getActiveSessionUsers error:', error);
+        return data || [];
     },
 
     // ── Guild Config ──
-    getGuildConfig(guildId) {
-        return getOne(`SELECT * FROM guild_config WHERE guild_id = ?`, [guildId]);
+    async getGuildConfig(guildId) {
+        const { data, error } = await supabase
+            .from('guild_config')
+            .select('*')
+            .eq('guild_id', guildId)
+            .single();
+        if (error && error.code !== 'PGRST116') console.error('getGuildConfig error:', error);
+        return data || undefined;
     },
 
-    upsertGuildConfig(guildId) {
-        run(`INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)`, [guildId]);
+    async upsertGuildConfig(guildId) {
+        const { error } = await supabase
+            .from('guild_config')
+            .upsert({ guild_id: guildId }, { onConflict: 'guild_id', ignoreDuplicates: true });
+        if (error) console.error('upsertGuildConfig error:', error);
     },
 
-    getAllGuilds() {
-        return getAll(`SELECT DISTINCT guild_id FROM guild_config`);
+    async getAllGuilds() {
+        const { data, error } = await supabase
+            .from('guild_config')
+            .select('guild_id');
+        if (error) console.error('getAllGuilds error:', error);
+        return data || [];
     },
 };
 
 // ─── Helper to update a single guild_config field ──────────
-function updateGuildConfig(guildId, field, value) {
+async function updateGuildConfig(guildId, field, value) {
     const allowed = [
         'announcement_channel', 'achievement_channel', 'study_channels',
         'weekly_champion_role', 'weekly_elite_role', 'weekly_achiever_role',
         'monthly_winner_role', 'prestige_roles', 'milestone_roles',
     ];
     if (!allowed.includes(field)) throw new Error(`Invalid config field: ${field}`);
-    run(`UPDATE guild_config SET ${field} = ? WHERE guild_id = ?`, [value, guildId]);
+    
+    const { error } = await supabase
+        .from('guild_config')
+        .update({ [field]: value })
+        .eq('guild_id', guildId);
+    if (error) console.error('updateGuildConfig error:', error);
 }
 
 module.exports = { initDB, queries, updateGuildConfig, saveDB };

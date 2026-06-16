@@ -2,34 +2,26 @@ const config = require('../config');
 const { queries } = require('../database/db');
 const { prestigeEmbed } = require('../utils/embedBuilder');
 
-/**
- * Check if a user qualifies for a new prestige tier.
- * @param {string} userId
- * @param {string} guildId
- * @param {number} totalSeconds
- * @param {import('discord.js').Client} client
- * @returns {Promise<object|null>}
- */
 async function checkPrestige(userId, guildId, totalSeconds, client) {
     const totalHours = totalSeconds / 3600;
-    const user = queries.getUser(userId, guildId);
+    const user = await queries.getUser(userId, guildId);
     if (!user) return null;
 
     let qualifiedTier = null;
     for (const tier of config.PRESTIGE_TIERS) {
-        if (totalHours >= tier.hours && tier.level > user.prestige_level) {
+        if (totalHours >= tier.hours && tier.level > (user.prestige_level || 0)) {
             qualifiedTier = tier;
         }
     }
 
     if (!qualifiedTier) return null;
 
-    queries.updatePrestige(qualifiedTier.level, userId, guildId);
+    await queries.updatePrestige(qualifiedTier.level, userId, guildId);
 
     try {
         const guild = await client.guilds.fetch(guildId);
         const member = await guild.members.fetch(userId);
-        const guildConfig = queries.getGuildConfig(guildId);
+        const guildConfig = await queries.getGuildConfig(guildId);
 
         const channelId = guildConfig?.achievement_channel || guildConfig?.announcement_channel;
         if (channelId) {

@@ -58,11 +58,11 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
         const guildId = interaction.guildId;
 
-        queries.upsertGuildConfig(guildId);
+        await queries.upsertGuildConfig(guildId);
 
         if (subcommand === 'announcement_channel') {
             const channel = interaction.options.getChannel('channel');
-            updateGuildConfig(guildId, 'announcement_channel', channel.id);
+            await updateGuildConfig(guildId, 'announcement_channel', channel.id);
             return interaction.reply({
                 embeds: [successEmbed(`Announcement channel set to ${channel}`)],
                 ephemeral: true,
@@ -71,7 +71,7 @@ module.exports = {
 
         if (subcommand === 'achievement_channel') {
             const channel = interaction.options.getChannel('channel');
-            updateGuildConfig(guildId, 'achievement_channel', channel.id);
+            await updateGuildConfig(guildId, 'achievement_channel', channel.id);
             return interaction.reply({
                 embeds: [successEmbed(`Achievement channel set to ${channel}`)],
                 ephemeral: true,
@@ -80,7 +80,7 @@ module.exports = {
 
         if (subcommand === 'study_channel') {
             const channel = interaction.options.getChannel('channel');
-            const guildConfig = queries.getGuildConfig(guildId);
+            const guildConfig = await queries.getGuildConfig(guildId);
             let channels = [];
             try {
                 channels = JSON.parse(guildConfig?.study_channels || '[]');
@@ -90,7 +90,7 @@ module.exports = {
                 channels.push(channel.id);
             }
 
-            updateGuildConfig(guildId, 'study_channels', JSON.stringify(channels));
+            await updateGuildConfig(guildId, 'study_channels', JSON.stringify(channels));
             return interaction.reply({
                 embeds: [successEmbed(`Added ${channel} as a study voice channel.\nTotal study channels: ${channels.length}`)],
                 ephemeral: true,
@@ -102,9 +102,9 @@ module.exports = {
             const elite = interaction.options.getRole('elite');
             const achiever = interaction.options.getRole('achiever');
 
-            updateGuildConfig(guildId, 'weekly_champion_role', champion.id);
-            updateGuildConfig(guildId, 'weekly_elite_role', elite.id);
-            updateGuildConfig(guildId, 'weekly_achiever_role', achiever.id);
+            await updateGuildConfig(guildId, 'weekly_champion_role', champion.id);
+            await updateGuildConfig(guildId, 'weekly_elite_role', elite.id);
+            await updateGuildConfig(guildId, 'weekly_achiever_role', achiever.id);
             return interaction.reply({
                 embeds: [successEmbed(`Weekly roles set:\n🥇 Champion: ${champion}\n🥈 Elite: ${elite}\n🥉 Achiever: ${achiever}`)],
                 ephemeral: true,
@@ -113,7 +113,7 @@ module.exports = {
 
         if (subcommand === 'monthly_role') {
             const role = interaction.options.getRole('role');
-            updateGuildConfig(guildId, 'monthly_winner_role', role.id);
+            await updateGuildConfig(guildId, 'monthly_winner_role', role.id);
             return interaction.reply({
                 embeds: [successEmbed(`Student of the Month role set to ${role}`)],
                 ephemeral: true,
@@ -121,7 +121,7 @@ module.exports = {
         }
 
         if (subcommand === 'view') {
-            const cfg = queries.getGuildConfig(guildId);
+            const cfg = await queries.getGuildConfig(guildId);
 
             const embed = new EmbedBuilder()
                 .setColor(config.COLORS.PRIMARY)

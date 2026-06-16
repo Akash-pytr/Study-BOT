@@ -7,26 +7,23 @@ const { sendReminders } = require('../systems/reminders');
 module.exports = {
     name: 'ready',
     once: true,
-    execute(client) {
+    async execute(client) {
         console.log(`\n✅ Study Bot is online as ${client.user.tag}`);
         console.log(`📊 Serving ${client.guilds.cache.size} server(s)`);
         console.log('─'.repeat(40));
 
-        // Ensure guild configs exist for all guilds
         for (const [guildId] of client.guilds.cache) {
-            queries.upsertGuildConfig(guildId);
+            await queries.upsertGuildConfig(guildId);
         }
 
-        // ─── Daily Reset: Midnight UTC ───────────────────────────
-        cron.schedule('0 0 * * *', () => {
+        cron.schedule('0 0 * * *', async () => {
             console.log('[Cron] Running daily reset...');
             for (const [guildId] of client.guilds.cache) {
-                queries.resetDailyAll(guildId);
+                await queries.resetDailyAll(guildId);
             }
             console.log('[Cron] Daily reset complete.');
         });
 
-        // ─── Weekly Winners: Sunday 23:59 UTC ────────────────────
         cron.schedule('59 23 * * 0', async () => {
             console.log('[Cron] Calculating weekly winners...');
             for (const [guildId] of client.guilds.cache) {
@@ -35,7 +32,6 @@ module.exports = {
             console.log('[Cron] Weekly winners processed.');
         });
 
-        // ─── Monthly Winner: Last day of month 23:59 UTC ─────────
         cron.schedule('59 23 28-31 * *', async () => {
             const now = new Date();
             const tomorrow = new Date(now);
@@ -50,7 +46,6 @@ module.exports = {
             }
         });
 
-        // ─── Daily Reminders: 8 PM UTC ──────────────────────────
         cron.schedule('0 20 * * *', async () => {
             console.log('[Cron] Sending daily reminders...');
             await sendReminders(client);

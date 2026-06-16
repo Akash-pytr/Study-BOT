@@ -18,10 +18,10 @@ module.exports = {
         const userId = interaction.user.id;
         const guildId = interaction.guildId;
 
-        queries.upsertUser(userId, guildId);
+        await queries.upsertUser(userId, guildId);
 
         if (subcommand === 'enable') {
-            queries.setReminders(1, userId, guildId);
+            await queries.setReminders(1, userId, guildId);
 
             const embed = new EmbedBuilder()
                 .setColor(config.COLORS.SUCCESS)
@@ -34,7 +34,7 @@ module.exports = {
         }
 
         if (subcommand === 'disable') {
-            queries.setReminders(0, userId, guildId);
+            await queries.setReminders(0, userId, guildId);
 
             const embed = new EmbedBuilder()
                 .setColor(config.COLORS.ERROR)

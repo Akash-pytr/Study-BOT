@@ -12,8 +12,8 @@ module.exports = {
     async execute(interaction) {
         const guildId = interaction.guildId;
 
-        const currentTop3 = queries.getTopWeekly(guildId);
-        const history = getWeeklyHistory(guildId, 15);
+        const currentTop3 = await queries.getTopWeekly(guildId);
+        const history = await getWeeklyHistory(guildId, 15);
 
         const embed = new EmbedBuilder()
             .setColor(config.COLORS.GOLD)

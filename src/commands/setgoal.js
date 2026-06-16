@@ -30,8 +30,8 @@ module.exports = {
         const userId = interaction.user.id;
         const guildId = interaction.guildId;
 
-        queries.upsertUser(userId, guildId);
-        queries.setGoal(hours, period, userId, guildId);
+        await queries.upsertUser(userId, guildId);
+        await queries.setGoal(hours, period, userId, guildId);
 
         const periodLabels = {
             daily: '📅 Daily',

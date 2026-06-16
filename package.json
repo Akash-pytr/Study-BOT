@@ -10,10 +10,10 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.63",
+    "@supabase/supabase-js": "^2.108.2",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.7",
-    "node-cron": "^3.0.3",
-    "sql.js": "^1.14.1"
+    "node-cron": "^3.0.3"
   },
   "engines": {
     "node": ">=18.0.0"

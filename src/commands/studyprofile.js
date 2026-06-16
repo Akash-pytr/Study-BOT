@@ -18,14 +18,14 @@ module.exports = {
         const targetUser = interaction.options.getUser('user') || interaction.user;
         const guildId = interaction.guildId;
 
-        queries.upsertUser(targetUser.id, guildId);
-        const dbUser = queries.getUser(targetUser.id, guildId);
+        await queries.upsertUser(targetUser.id, guildId);
+        const dbUser = await queries.getUser(targetUser.id, guildId);
 
         if (!dbUser) {
             return interaction.editReply({ content: '❌ User data not found.' });
         }
 
-        const rankResult = queries.getUserRank(guildId, targetUser.id);
+        const rankResult = await queries.getUserRank(guildId, targetUser.id);
         const rank = rankResult?.rank || 0;
 
         try {
