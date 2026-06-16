@@ -46,7 +46,7 @@ async function checkPrestige(userId, guildId, totalSeconds, client) {
     }
 
     return qualifiedTier;
-}
+} 
 
 function getPrestigeTier(prestigeLevel) {
     return config.PRESTIGE_TIERS.find(t => t.level === prestigeLevel) || null;
