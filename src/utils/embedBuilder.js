@@ -55,7 +55,7 @@ function monthlyWinnerEmbed(winner, month, guild) {
         .addFields(
             { name: '📖 Hours Studied', value: formatHours(winner.monthly_seconds), inline: true },
             { name: '⭐ Level', value: `${winner.level}`, inline: true },
-            { name: '🏅 Achievements', value: `${winner.achievements_count}`, inline: true },
+            { name: '🏅 Achievements', value: `${winner.achievements ?? 0}`, inline: true },
         )
         .setFooter({ text: `${guild.name} • Student of the Month` })
         .setTimestamp();

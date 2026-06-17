@@ -34,7 +34,8 @@ module.exports = {
             }
         }
         else if (oldChannelId && !newChannelId) {
-            await handleLeave(userId, guildId, newState.client);
+            const client = newState.client || oldState.client;
+            await handleLeave(userId, guildId, client);
         }
         else if (oldChannelId && newChannelId && oldChannelId !== newChannelId) {
             const wasInStudy = isStudyChannel(oldChannelId);
@@ -82,8 +83,10 @@ async function handleLeave(userId, guildId, client) {
     await updateStreak(userId, guildId);
 
     const updatedUser = await queries.getUser(userId, guildId);
-    await checkMilestones(userId, guildId, updatedUser.total_seconds, client);
-    await checkPrestige(userId, guildId, updatedUser.total_seconds, client);
+    if (updatedUser) {
+        await checkMilestones(userId, guildId, updatedUser.total_seconds, client);
+        await checkPrestige(userId, guildId, updatedUser.total_seconds, client);
+    }
 
     console.log(`[VC] ${userId} auto-stopped studying — ${Math.floor(duration / 60)}m in guild ${guildId}`);
 }

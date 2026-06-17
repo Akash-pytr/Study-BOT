@@ -102,9 +102,12 @@ module.exports = {
             const elite = interaction.options.getRole('elite');
             const achiever = interaction.options.getRole('achiever');
 
-            await updateGuildConfig(guildId, 'weekly_champion_role', champion.id);
-            await updateGuildConfig(guildId, 'weekly_elite_role', elite.id);
-            await updateGuildConfig(guildId, 'weekly_achiever_role', achiever.id);
+            // Optimized: parallel DB calls instead of 3 sequential calls
+            await Promise.all([
+                updateGuildConfig(guildId, 'weekly_champion_role', champion.id),
+                updateGuildConfig(guildId, 'weekly_elite_role', elite.id),
+                updateGuildConfig(guildId, 'weekly_achiever_role', achiever.id),
+            ]);
             return interaction.reply({
                 embeds: [successEmbed(`Weekly roles set:\n🥇 Champion: ${champion}\n🥈 Elite: ${elite}\n🥉 Achiever: ${achiever}`)],
                 ephemeral: true,
