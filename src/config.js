@@ -31,6 +31,7 @@ module.exports = {
         MILESTONE: 0xE91E63,  // Pink
         PRESTIGE: 0x9B59B6,   // Purple
         PROFILE: 0x2B2D31,    // Dark embed
+        ASK: 0x5865F2,        // Ask command default
     },
 
     // ─── Weekly Winner Role Names (for display) ──────────────
