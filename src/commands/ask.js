@@ -4,11 +4,16 @@ const { SUBJECTS, askQuestion, checkRateLimit, detectSubject } = require('../uti
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('ask')
-        .setDescription('Ask any academic question — Math, Science, History, and more!')
+        .setDescription('Ask any academic question — with text or by uploading an image/screenshot!')
         .addStringOption(option =>
             option.setName('question')
-                .setDescription('Your question (Hindi, English, or any language)')
-                .setRequired(true)
+                .setDescription('Your question (optional if image is provided)')
+                .setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('image')
+                .setDescription('Upload an image/screenshot of your question')
+                .setRequired(false)
         )
         .addStringOption(option =>
             option.setName('subject')
@@ -45,7 +50,15 @@ module.exports = {
     async execute(interaction) {
         const userId = interaction.user.id;
         const question = interaction.options.getString('question');
+        const imageAttachment = interaction.options.getAttachment('image');
         let subject = interaction.options.getString('subject');
+
+        if (!question && !imageAttachment) {
+            return interaction.reply({
+                content: '❌ Please provide a text question or upload an image/screenshot!',
+                ephemeral: true,
+            });
+        }
 
         // ─── Rate Limit Check ───────────────────────────────
         const rateCheck = checkRateLimit(userId);
@@ -57,17 +70,43 @@ module.exports = {
         }
 
         // ─── Auto-detect subject if not provided ────────────
-        if (!subject) {
+        if (!subject && question) {
             subject = detectSubject(question);
         }
 
         const subjectInfo = SUBJECTS[subject] || SUBJECTS.general;
 
+        // ─── Process Image Attachment ────────────────────────
+        let imageBuffer = null;
+        let mimeType = null;
+        if (imageAttachment) {
+            const contentType = imageAttachment.contentType || '';
+            if (!contentType.startsWith('image/')) {
+                return interaction.reply({
+                    content: '❌ Invalid file format! Please upload an image file (PNG, JPG, WEBP, etc.).',
+                    ephemeral: true,
+                });
+            }
+
+            try {
+                const response = await fetch(imageAttachment.url);
+                const arrayBuffer = await response.arrayBuffer();
+                imageBuffer = Buffer.from(arrayBuffer);
+                mimeType = contentType;
+            } catch (err) {
+                console.error('[Ask Command] Failed to download image:', err);
+                return interaction.reply({
+                    content: '❌ Failed to download the attached image. Please try again.',
+                    ephemeral: true,
+                });
+            }
+        }
+
         // ─── Defer reply (AI takes a moment) ────────────────
         await interaction.deferReply();
 
         try {
-            const answer = await askQuestion(question, subject);
+            const answer = await askQuestion(question, subject, imageBuffer, mimeType);
 
             // ─── Split long answers into chunks ─────────────
             const chunks = splitAnswer(answer, 4000);
@@ -85,6 +124,10 @@ module.exports = {
                     iconURL: interaction.user.displayAvatarURL({ size: 32 }),
                 })
                 .setTimestamp();
+
+            if (imageAttachment) {
+                mainEmbed.setThumbnail(imageAttachment.url);
+            }
 
             const embeds = [mainEmbed];
 

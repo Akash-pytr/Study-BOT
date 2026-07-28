@@ -36,7 +36,17 @@ History, Geography, Economics, Political Science, Psychology, Philosophy, Law,
 English, Literature, Arts, Music, Business, Agriculture, Environmental Science, 
 Architecture, Sports Science, Education, and more.
 
-RULES:
+CRITICAL DISCORD & MATH FORMATTING RULES:
+- Discord DOES NOT support LaTeX. Do NOT use LaTeX tags or commands like \\frac, \\int, \\rho, \\theta, \\phi, \\mathbf, \\left, \\right, \\cdot, $$, or $.
+- Raw LaTeX code is unreadable in Discord. ALWAYS write math, equations, integrals, and formulas using clean plain text and Unicode math symbols:
+  - Integral symbols: ∫, ∬, ∭ (e.g. ∫[0 to a] ρ⁴ dρ = [ρ⁵ / 5] from 0 to a = a⁵ / 5)
+  - Greek letters: θ, φ (or phi), ρ (or rho), π, α, β, λ, etc.
+  - Superscripts/Subscripts: ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, x₀, etc.
+  - Clear division: (numerator) / (denominator) or (a / b).
+  - Multiplication: · or ×
+- Present every step clearly in clean, human-readable text so students can read it effortlessly without seeing raw code tags.
+
+GENERAL RULES:
 1. Answer in the SAME LANGUAGE as the question. If asked in Hindi/Hinglish, reply in Hindi/Hinglish.
 2. For math/numerical problems: Show complete step-by-step solution with formulas.
 3. For science concepts: Explain with examples, diagrams (text-based), and real-world applications.
@@ -50,6 +60,43 @@ RULES:
 11. For competitive exam questions (JEE, NEET, UPSC, etc.), mention the correct option and explain why.
 
 You are knowledgeable, friendly, and encouraging. Make learning fun! 🎯`;
+
+// ─── LaTeX Sanitizer Helper for Discord ────────────────────────
+function cleanLaTeX(text) {
+    if (!text) return text;
+    let cleaned = text;
+
+    // Convert \frac{a}{b} -> (a / b)
+    cleaned = cleaned.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1 / $2)');
+
+    // Convert LaTeX math symbols to Unicode equivalents
+    cleaned = cleaned.replace(/\\int/g, '∫')
+                     .replace(/\\iint/g, '∬')
+                     .replace(/\\iiint/g, '∭')
+                     .replace(/\\rho/g, 'ρ')
+                     .replace(/\\theta/g, 'θ')
+                     .replace(/\\phi/g, 'φ')
+                     .replace(/\\pi/g, 'π')
+                     .replace(/\\alpha/g, 'α')
+                     .replace(/\\beta/g, 'β')
+                     .replace(/\\gamma/g, 'γ')
+                     .replace(/\\delta/g, 'δ')
+                     .replace(/\\lambda/g, 'λ')
+                     .replace(/\\infty/g, '∞')
+                     .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
+                     .replace(/\\cdot/g, ' · ')
+                     .replace(/\\times/g, ' × ')
+                     .replace(/\\mathbf\{([^}]+)\}/g, '**$1**')
+                     .replace(/\\text\{([^}]+)\}/g, '$1')
+                     .replace(/\\left/g, '')
+                     .replace(/\\right/g, '')
+                     .replace(/\\implies/g, '⇒');
+
+    // Remove $ and $$ wrappers
+    cleaned = cleaned.replace(/\$\$/g, '').replace(/\$/g, '');
+
+    return cleaned;
+}
 
 // ─── Rate Limiter ───────────────────────────────────────────────
 const rateLimitMap = new Map();
@@ -94,17 +141,32 @@ function getModel() {
 }
 
 // ─── Ask Question ───────────────────────────────────────────────
-async function askQuestion(question, subject = null) {
+async function askQuestion(question, subject = null, imageBuffer = null, mimeType = null) {
     const gemini = getModel();
 
-    let prompt = question;
+    const parts = [];
+
+    let promptText = question || 'Please analyze and answer the question in this image in detail.';
     if (subject && SUBJECTS[subject]) {
-        prompt = `[Subject: ${SUBJECTS[subject].label}]\n\n${question}`;
+        promptText = `[Subject: ${SUBJECTS[subject].label}]\n\n${promptText}`;
+    }
+    parts.push(promptText);
+
+    if (imageBuffer && mimeType) {
+        parts.push({
+            inlineData: {
+                data: imageBuffer.toString('base64'),
+                mimeType: mimeType,
+            },
+        });
     }
 
-    const result = await gemini.generateContent(prompt);
+    const result = await gemini.generateContent(parts);
     const response = result.response;
     let text = response.text();
+
+    // Clean LaTeX formatting for Discord
+    text = cleanLaTeX(text);
 
     // Trim to Discord embed limit (4096 chars for description, but we keep it readable)
     if (text.length > 3900) {
