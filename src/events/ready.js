@@ -1,11 +1,12 @@
 const cron = require('node-cron');
+const { Events } = require('discord.js');
 const { queries } = require('../database/db');
 const { processWeeklyWinners } = require('../systems/weeklyWinner');
 const { processMonthlyWinner } = require('../systems/monthlyWinner');
 const { sendReminders } = require('../systems/reminders');
 
 module.exports = {
-    name: 'ready',
+    name: Events.ClientReady,
     once: true,
     async execute(client) {
         console.log(`\n✅ Study Bot is online as ${client.user.tag}`);
