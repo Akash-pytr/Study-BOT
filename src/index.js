@@ -29,8 +29,12 @@ client.commands = new Collection();
 
 async function main() {
     // ─── Validate Token ──────────────────────────────────────
-    if (!process.env.BOT_TOKEN || process.env.BOT_TOKEN.trim() === '' || process.env.BOT_TOKEN === 'YOUR_BOT_TOKEN_HERE') {
-        console.error('❌ BOT_TOKEN is not set or invalid in .env file!');
+    console.log("BOT_TOKEN =", process.env.BOT_TOKEN);
+    console.log("BOT_TOKEN TYPE =", typeof process.env.BOT_TOKEN);
+    console.log("ENV COUNT =", Object.keys(process.env).length);
+
+    if (!process.env.BOT_TOKEN) {
+        console.log(process.env);
         process.exit(1);
     }
 
@@ -64,11 +68,11 @@ async function main() {
             const event = require(filePath);
             if (event && event.name && typeof event.execute === 'function') {
                 if (event.once) {
-                    client.once(event.name, (...args) => 
+                    client.once(event.name, (...args) =>
                         event.execute(...args).catch(err => console.error(`❌ Error in event "${event.name}":`, err))
                     );
                 } else {
-                    client.on(event.name, (...args) => 
+                    client.on(event.name, (...args) =>
                         event.execute(...args).catch(err => console.error(`❌ Error in event "${event.name}":`, err))
                     );
                 }
