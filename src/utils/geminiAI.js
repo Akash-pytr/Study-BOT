@@ -121,28 +121,29 @@ function checkRateLimit(userId) {
     return { allowed: true };
 }
 
-// ─── Gemini Client ──────────────────────────────────────────────
-let genAI = null;
-let model = null;
+// ─── Gemini Client with Multi-Model Fallback ─────────────────────
+const GEMINI_MODELS = [
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-3.6-flash',
+];
 
-function getModel() {
-    if (!model) {
+let genAI = null;
+
+function getGenAI() {
+    if (!genAI) {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
             throw new Error('GEMINI_API_KEY is not set in .env file!');
         }
         genAI = new GoogleGenerativeAI(apiKey);
-        model = genAI.getGenerativeModel({
-            model: 'gemini-3.6-flash',
-            systemInstruction: SYSTEM_PROMPT,
-        });
     }
-    return model;
+    return genAI;
 }
 
 // ─── Ask Question ───────────────────────────────────────────────
 async function askQuestion(question, subject = null, imageBuffer = null, mimeType = null) {
-    const gemini = getModel();
+    const ai = getGenAI();
 
     const parts = [];
 
@@ -161,19 +162,35 @@ async function askQuestion(question, subject = null, imageBuffer = null, mimeTyp
         });
     }
 
-    const result = await gemini.generateContent(parts);
-    const response = result.response;
-    let text = response.text();
+    let lastError = null;
 
-    // Clean LaTeX formatting for Discord
-    text = cleanLaTeX(text);
+    for (const modelName of GEMINI_MODELS) {
+        try {
+            const model = ai.getGenerativeModel({
+                model: modelName,
+                systemInstruction: SYSTEM_PROMPT,
+            });
 
-    // Trim to Discord embed limit (4096 chars for description, but we keep it readable)
-    if (text.length > 3900) {
-        text = text.substring(0, 3900) + '\n\n*... (answer truncated — ask a follow-up for more details!)*';
+            const result = await model.generateContent(parts);
+            const response = result.response;
+            let text = response.text();
+
+            // Clean LaTeX formatting for Discord
+            text = cleanLaTeX(text);
+
+            // Trim to Discord embed limit
+            if (text.length > 3900) {
+                text = text.substring(0, 3900) + '\n\n*... (answer truncated — ask a follow-up for more details!)*';
+            }
+
+            return text;
+        } catch (err) {
+            console.warn(`[Gemini AI] Model "${modelName}" failed or rate-limited (${err.status || err.message}). Trying fallback model...`);
+            lastError = err;
+        }
     }
 
-    return text;
+    throw lastError || new Error('All Gemini AI models are currently busy. Please try again in a moment.');
 }
 
 // ─── Auto-detect Subject ────────────────────────────────────────
