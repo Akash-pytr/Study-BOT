@@ -123,9 +123,9 @@ function checkRateLimit(userId) {
 
 // ─── Gemini Client with Multi-Model Fallback ─────────────────────
 const GEMINI_MODELS = [
-    'gemini-3.5-flash-lite',
     'gemini-3.1-flash-lite',
     'gemini-3.6-flash',
+    'gemini-flash-latest',
 ];
 
 let genAI = null;
@@ -165,7 +165,9 @@ async function askQuestion(question, subject = null, imageBuffer = null, mimeTyp
     let lastError = null;
 
     for (const modelName of GEMINI_MODELS) {
+        const startTime = Date.now();
         try {
+            console.log(`[Ask AI] Querying Gemini model "${modelName}"...`);
             const model = ai.getGenerativeModel({
                 model: modelName,
                 systemInstruction: SYSTEM_PROMPT,
@@ -174,6 +176,8 @@ async function askQuestion(question, subject = null, imageBuffer = null, mimeTyp
             const result = await model.generateContent(parts);
             const response = result.response;
             let text = response.text();
+
+            console.log(`[Ask AI] Model "${modelName}" responded in ${Date.now() - startTime}ms`);
 
             // Clean LaTeX formatting for Discord
             text = cleanLaTeX(text);
@@ -185,7 +189,7 @@ async function askQuestion(question, subject = null, imageBuffer = null, mimeTyp
 
             return text;
         } catch (err) {
-            console.warn(`[Gemini AI] Model "${modelName}" failed or rate-limited (${err.status || err.message}). Trying fallback model...`);
+            console.warn(`[Gemini AI] Model "${modelName}" failed after ${Date.now() - startTime}ms (${err.status || err.message}). Trying fallback model...`);
             lastError = err;
         }
     }
