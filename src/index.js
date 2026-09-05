@@ -29,12 +29,8 @@ client.commands = new Collection();
 
 async function main() {
     // ─── Validate Token ──────────────────────────────────────
-    console.log("BOT_TOKEN =", process.env.BOT_TOKEN);
-    console.log("BOT_TOKEN TYPE =", typeof process.env.BOT_TOKEN);
-    console.log("ENV COUNT =", Object.keys(process.env).length);
-
     if (!process.env.BOT_TOKEN) {
-        console.log(process.env);
+        console.error('❌ BOT_TOKEN is missing in .env');
         process.exit(1);
     }
 
